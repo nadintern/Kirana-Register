@@ -10,7 +10,7 @@ import java.util.UUID;
 public interface TransactionService {
 
     // create a transaction with items, currency conversion, and store-level entries
-    CreateTransactionResponse createTransaction(String userId, CreateTransactionRequest request);
+    CreateTransactionResponse createTransaction(CreateTransactionRequest request);
 
     // find a transaction by its ID
     Optional<Transaction> getTransactionById(UUID transactionId);

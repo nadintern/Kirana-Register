@@ -2,13 +2,19 @@ package com.nadeem.changejar.kiranaregister.service;
 
 import com.nadeem.changejar.kiranaregister.dto.transaction.CreateTransactionRequest;
 import com.nadeem.changejar.kiranaregister.dto.transaction.CreateTransactionResponse;
-import com.nadeem.changejar.kiranaregister.entity.Transaction;
-import com.nadeem.changejar.kiranaregister.repository.StoreTransactionRepository;
-import com.nadeem.changejar.kiranaregister.repository.TransactionItemRepository;
-import com.nadeem.changejar.kiranaregister.repository.TransactionRepository;
+import com.nadeem.changejar.kiranaregister.dto.transaction.TransactionItemRequest;
+import com.nadeem.changejar.kiranaregister.entity.*;
+import com.nadeem.changejar.kiranaregister.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.bson.types.ObjectId;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,17 +25,111 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepository;
     private final TransactionItemRepository transactionItemRepository;
     private final StoreTransactionRepository storeTransactionRepository;
+    private final InventoryRepository inventoryRepository;
+    private final StoreRepository storeRepository;
+    private final ProductRepository productRepository;
 
+    @Transactional
     @Override
-    public CreateTransactionResponse createTransaction(String userId, CreateTransactionRequest request) {
-        // TODO: implement - fetch product prices, convert currencies,
-        //  save transaction + items + store_transactions, update inventory
-        return null;
+    public CreateTransactionResponse createTransaction(CreateTransactionRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String userId = auth.getName();
+
+        // 1. Create and save the transaction
+        Transaction transaction = new Transaction();
+        transaction.setUserId(userId);
+        transaction.setTransactionType(request.getTransactionType());
+        transaction.setPaymentCurrency(request.getPaymentCurrency());
+        transaction.setTotalAmount(BigDecimal.ZERO);
+        transaction.setCreatedAt(Instant.now());
+        transaction = transactionRepository.save(transaction);
+
+        BigDecimal totalPaymentAmount = BigDecimal.ZERO;
+
+        // 2. Process each item
+        for (TransactionItemRequest itemRequest : request.getItems()) {
+            String productId = itemRequest.getProductId();
+            String storeId = itemRequest.getStoreId();
+            int quantity = itemRequest.getQuantity();
+
+            // Validate inventory
+            Inventory inventory = inventoryRepository.findByStoreIdAndProductId(storeId, productId)
+                    .orElseThrow(() -> new RuntimeException("Inventory not found for store: " + storeId + ", product: " + productId));
+
+            if (inventory.getQuantity() < quantity) {
+                throw new RuntimeException("Insufficient inventory for product: " + productId + " in store: " + storeId);
+            }
+
+            // Fetch product price from MongoDB
+            //Could also user optional to store from repo as well but orElseThrow is convenient.
+            Product product = productRepository.findById(new ObjectId(productId))
+                    .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+
+            // Fetch store to get base currency
+            Store store = storeRepository.findById(new ObjectId(storeId))
+                    .orElseThrow(() -> new RuntimeException("Store not found: " + storeId));
+
+            String baseCurrency = store.getBaseCurrency();
+            BigDecimal unitPriceBase = product.getDisplayPrice();
+
+            // TODO: Call external currency conversion API to get conversion rate
+            // Example: BigDecimal conversionRate = currencyService.getRate(baseCurrency, request.getPaymentCurrency());
+            BigDecimal conversionRate = BigDecimal.ONE; // placeholder
+
+            BigDecimal unitPricePayment = unitPriceBase.multiply(conversionRate).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal totalBase = unitPriceBase.multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal totalPayment = unitPricePayment.multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
+
+            // 3. Save transaction item
+            TransactionItem item = new TransactionItem();
+            item.setTransaction(transaction);
+            item.setProductId(productId);
+            item.setStoreId(storeId);
+            item.setQuantity(quantity);
+            item.setUnitPriceBase(unitPriceBase);
+            item.setBaseCurrency(baseCurrency);
+            item.setConversionRate(conversionRate);
+            item.setUnitPricePayment(unitPricePayment);
+            item.setTotalBase(totalBase);
+            item.setTotalPayment(totalPayment);
+            item.setCreatedAt(Instant.now());
+            transactionItemRepository.save(item);
+
+            // 4. Update inventory
+            inventory.setQuantity(inventory.getQuantity() - quantity);
+            inventory.setUpdatedAt(Instant.now());
+            inventoryRepository.save(inventory);
+
+            // 5. Save store transaction
+            StoreTransaction storeTransaction = new StoreTransaction();
+            storeTransaction.setStoreId(storeId);
+            storeTransaction.setTransactionId(transaction.getId().toString());
+            storeTransaction.setTransactionType(request.getTransactionType());
+            storeTransaction.setTotalInBaseCurrency(totalBase);
+            storeTransaction.setBaseCurrency(baseCurrency);
+            storeTransaction.setStatus("COMPLETED");
+            storeTransaction.setCreatedAt(Instant.now());
+            storeTransactionRepository.save(storeTransaction);
+
+            totalPaymentAmount = totalPaymentAmount.add(totalPayment);
+        }
+
+        // 6. Update transaction total
+        transaction.setTotalAmount(totalPaymentAmount);
+        transactionRepository.save(transaction);
+
+        return CreateTransactionResponse.builder()
+                .success(true)
+                .transactionId(transaction.getId().toString())
+                .userId(userId)
+                .transactionType(request.getTransactionType())
+                .paymentCurrency(request.getPaymentCurrency())
+                .totalAmount(totalPaymentAmount)
+                .build();
     }
 
     @Override
     public Optional<Transaction> getTransactionById(UUID transactionId) {
-        // TODO: implement - return transaction with items
-        return Optional.empty();
+        return transactionRepository.findById(transactionId);
     }
 }

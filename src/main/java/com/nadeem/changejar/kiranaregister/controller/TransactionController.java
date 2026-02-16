@@ -19,11 +19,13 @@ public class TransactionController {
 
     // create a new transaction
     @PostMapping
-    public ResponseEntity<?> createTransaction(@RequestParam String userId,
-                                               @RequestBody CreateTransactionRequest request) {
-        // TODO: get userId from auth context instead of param
-        CreateTransactionResponse response = transactionService.createTransaction(userId, request);
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    public ResponseEntity<?> createTransaction(@RequestBody CreateTransactionRequest request) {
+        try {
+            CreateTransactionResponse response = transactionService.createTransaction(request);
+            return new ResponseEntity<>(response, HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     // get a transaction by ID
