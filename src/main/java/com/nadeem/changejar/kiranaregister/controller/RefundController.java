@@ -2,6 +2,7 @@ package com.nadeem.changejar.kiranaregister.controller;
 
 import com.nadeem.changejar.kiranaregister.dto.refund.*;
 import com.nadeem.changejar.kiranaregister.service.RefundService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +20,7 @@ public class RefundController {
 
     // create a refund request
     @PostMapping
-    public ResponseEntity<?> createRefund(@RequestBody CreateRefundRequest request) {
+    public ResponseEntity<?> createRefund(@Valid @RequestBody CreateRefundRequest request) {
         CreateRefundResponse response = refundService.createRefund(request);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
@@ -27,7 +28,7 @@ public class RefundController {
     // approve or reject a refund
     @PutMapping("/{refundId}/status")
     public ResponseEntity<?> updateRefundStatus(@PathVariable UUID refundId,
-                                                @RequestBody RefundStatusRequest request) {
+                                                @Valid @RequestBody RefundStatusRequest request) {
         RefundApprovalResponse response = refundService.updateRefundStatus(refundId, request);
         return ResponseEntity.ok(response);
     }

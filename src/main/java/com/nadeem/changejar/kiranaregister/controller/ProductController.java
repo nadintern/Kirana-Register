@@ -5,6 +5,7 @@ import com.nadeem.changejar.kiranaregister.entity.Product;
 import com.nadeem.changejar.kiranaregister.entity.Store;
 import com.nadeem.changejar.kiranaregister.service.ProductService;
 import com.nadeem.changejar.kiranaregister.service.StoreService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
@@ -24,7 +25,7 @@ public class ProductController {
     // create a product under a store
     @PostMapping
     public ResponseEntity<?> createProduct(@PathVariable String storeId,
-                                           @RequestBody CreateProductRequest request) {
+                                           @Valid @RequestBody CreateProductRequest request) {
         try {
             ObjectId storeObjectId = new ObjectId(storeId);
 
@@ -80,7 +81,7 @@ public class ProductController {
     @PutMapping("/{productId}")
     public ResponseEntity<?> updateProduct(@PathVariable String storeId,
                                            @PathVariable String productId,
-                                           @RequestBody UpdateProductRequest request) {
+                                           @Valid @RequestBody UpdateProductRequest request) {
         try {
             ObjectId productObjectId = new ObjectId(productId);
 

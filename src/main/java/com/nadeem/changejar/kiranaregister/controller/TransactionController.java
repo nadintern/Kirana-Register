@@ -3,6 +3,7 @@ package com.nadeem.changejar.kiranaregister.controller;
 import com.nadeem.changejar.kiranaregister.dto.transaction.CreateTransactionRequest;
 import com.nadeem.changejar.kiranaregister.dto.transaction.CreateTransactionResponse;
 import com.nadeem.changejar.kiranaregister.service.TransactionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +20,7 @@ public class TransactionController {
 
     // create a new transaction
     @PostMapping
-    public ResponseEntity<?> createTransaction(@RequestBody CreateTransactionRequest request) {
+    public ResponseEntity<?> createTransaction(@Valid @RequestBody CreateTransactionRequest request) {
         try {
             CreateTransactionResponse response = transactionService.createTransaction(request);
             return new ResponseEntity<>(response, HttpStatus.CREATED);

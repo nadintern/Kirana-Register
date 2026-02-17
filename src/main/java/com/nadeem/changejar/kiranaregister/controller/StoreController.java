@@ -3,6 +3,7 @@ package com.nadeem.changejar.kiranaregister.controller;
 import com.nadeem.changejar.kiranaregister.dto.store.*;
 import com.nadeem.changejar.kiranaregister.entity.Store;
 import com.nadeem.changejar.kiranaregister.service.StoreService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +20,7 @@ public class StoreController {
 
     // create a new store
     @PostMapping
-    public ResponseEntity<?> createStore(@RequestBody CreateStoreRequest request) {
+    public ResponseEntity<?> createStore(@Valid @RequestBody CreateStoreRequest request) {
         try {
             Store store = storeService.createStore(
                     request.getStoreName(),

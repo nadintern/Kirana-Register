@@ -2,6 +2,7 @@ package com.nadeem.changejar.kiranaregister.controller.auth;
 
 import com.nadeem.changejar.kiranaregister.dto.auth.*;
 import com.nadeem.changejar.kiranaregister.service.auth.PublicService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,7 +19,7 @@ public class PublicController {
 
     // register a new user
     @PostMapping("/public/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
         try {
             RegisterResponse response = publicService.registerUser(request);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
@@ -29,7 +30,7 @@ public class PublicController {
 
     // register a store owner with their stores
     @PostMapping("/register/store-owner")
-    public ResponseEntity<?> registerStoreOwner(@RequestBody StoreOwnerRegisterRequest request) {
+    public ResponseEntity<?> registerStoreOwner(@Valid @RequestBody StoreOwnerRegisterRequest request) {
         try {
             StoreOwnerRegisterResponse response = publicService.registerStoreOwner(request);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
@@ -40,7 +41,7 @@ public class PublicController {
 
     // login with username and password
     @PostMapping("/public/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
         try {
             LoginResponse response = publicService.login(request);
             return ResponseEntity.ok(response);
@@ -52,7 +53,7 @@ public class PublicController {
     // change password for a user
     @PutMapping("/change-password/{username}")
     public ResponseEntity<?> changePassword(@PathVariable String username,
-                                            @RequestBody ChangePasswordRequest request) {
+                                            @Valid @RequestBody ChangePasswordRequest request) {
         try {
             ChangePasswordResponse response = publicService.changePassword(username, request);
             return ResponseEntity.ok(response);
@@ -63,7 +64,7 @@ public class PublicController {
 
     // assign a role to a user (admin operation)
     @PutMapping("/assign-role")
-    public ResponseEntity<?> assignRole(@RequestBody AssignRoleRequest request) {
+    public ResponseEntity<?> assignRole(@Valid @RequestBody AssignRoleRequest request) {
         try {
             AssignRoleResponse response = publicService.assignRole(request);
             return ResponseEntity.ok(response);
