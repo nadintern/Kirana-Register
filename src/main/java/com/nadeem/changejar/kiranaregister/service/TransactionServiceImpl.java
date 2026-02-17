@@ -5,6 +5,7 @@ import com.nadeem.changejar.kiranaregister.dto.transaction.CreateTransactionResp
 import com.nadeem.changejar.kiranaregister.dto.transaction.TransactionItemRequest;
 import com.nadeem.changejar.kiranaregister.entity.*;
 import com.nadeem.changejar.kiranaregister.repository.*;
+import com.nadeem.changejar.kiranaregister.service.auth.CurrencyService;
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.security.core.Authentication;
@@ -15,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,6 +31,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final InventoryRepository inventoryRepository;
     private final StoreRepository storeRepository;
     private final ProductRepository productRepository;
+    private final CurrencyService currencyService;
 
     @Transactional
     @Override
@@ -45,6 +49,10 @@ public class TransactionServiceImpl implements TransactionService {
         transaction = transactionRepository.save(transaction);
 
         BigDecimal totalPaymentAmount = BigDecimal.ZERO;
+
+        // Aggregate store-level totals: storeId -> {totalInBase, baseCurrency}
+        Map<String, BigDecimal> storeTotals = new HashMap<>();
+        Map<String, String> storeCurrencies = new HashMap<>();
 
         // 2. Process each item
         for (TransactionItemRequest itemRequest : request.getItems()) {
@@ -72,9 +80,7 @@ public class TransactionServiceImpl implements TransactionService {
             String baseCurrency = store.getBaseCurrency();
             BigDecimal unitPriceBase = product.getDisplayPrice();
 
-            // TODO: Call external currency conversion API to get conversion rate
-            // Example: BigDecimal conversionRate = currencyService.getRate(baseCurrency, request.getPaymentCurrency());
-            BigDecimal conversionRate = BigDecimal.ONE; // placeholder
+            BigDecimal conversionRate = currencyService.getRate(baseCurrency, request.getPaymentCurrency());
 
             BigDecimal unitPricePayment = unitPriceBase.multiply(conversionRate).setScale(2, RoundingMode.HALF_UP);
             BigDecimal totalBase = unitPriceBase.multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
@@ -100,21 +106,27 @@ public class TransactionServiceImpl implements TransactionService {
             inventory.setUpdatedAt(Instant.now());
             inventoryRepository.save(inventory);
 
-            // 5. Save store transaction
-            StoreTransaction storeTransaction = new StoreTransaction();
-            storeTransaction.setStoreId(storeId);
-            storeTransaction.setTransactionId(transaction.getId().toString());
-            storeTransaction.setTransactionType(request.getTransactionType());
-            storeTransaction.setTotalInBaseCurrency(totalBase);
-            storeTransaction.setBaseCurrency(baseCurrency);
-            storeTransaction.setStatus("COMPLETED");
-            storeTransaction.setCreatedAt(Instant.now());
-            storeTransactionRepository.save(storeTransaction);
+            // 5. Aggregate totals per store
+            storeTotals.merge(storeId, totalBase, BigDecimal::add);
+            storeCurrencies.putIfAbsent(storeId, baseCurrency);
 
             totalPaymentAmount = totalPaymentAmount.add(totalPayment);
         }
 
-        // 6. Update transaction total
+        // 6. Create one StoreTransaction per store
+        for (Map.Entry<String, BigDecimal> entry : storeTotals.entrySet()) {
+            StoreTransaction storeTransaction = new StoreTransaction();
+            storeTransaction.setStoreId(entry.getKey());
+            storeTransaction.setTransactionId(transaction.getId().toString());
+            storeTransaction.setTransactionType(request.getTransactionType());
+            storeTransaction.setTotalInBaseCurrency(entry.getValue());
+            storeTransaction.setBaseCurrency(storeCurrencies.get(entry.getKey()));
+            storeTransaction.setStatus("COMPLETED");
+            storeTransaction.setCreatedAt(Instant.now());
+            storeTransactionRepository.save(storeTransaction);
+        }
+
+        // 7. Update transaction total
         transaction.setTotalAmount(totalPaymentAmount);
         transactionRepository.save(transaction);
 
